@@ -5,7 +5,7 @@ import json
 from json import JSONEncoder
 
 src_dir = 'img_src'
-out_file = 'cal_coeffs.json'
+coeff_file = 'cal_coeffs.json'
 
 # Scripted designed to calibrate basic distortions of a camera, using a series
 # of images (works best with >20) containing a flat laying checker board
@@ -80,5 +80,5 @@ if __name__ == '__main__':
                'distortion_coefficients': dist_coeffs}
     print(np_data)
 
-    with open(out_file, 'w') as f:
+    with open(coeff_file, 'w') as f:
         json.dump(np_data, f, cls=NumpyArrayEncoder, indent=4)

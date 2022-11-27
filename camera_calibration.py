@@ -1,10 +1,11 @@
 import cv2
 import numpy as np
 import os
-import sys
+import json
+from json import JSONEncoder
 
 src_dir = 'img_src'
-out_file = 'cal_coeffs'
+out_file = 'cal_coeffs.json'
 
 # Scripted designed to calibrate basic distortions of a camera, using a series
 # of images (works best with >20) containing a flat laying checker board
@@ -12,9 +13,16 @@ out_file = 'cal_coeffs'
 #
 # Images should be saved in img_src and have the same resolution.
 #
-# Calibration coefficients are stored in cal_coeffs.
+# Calibration coefficients are stored in cal_coeffs.json.
 #
 # Additionally, undistort function is provided.
+
+
+class NumpyArrayEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return JSONEncoder.default(self, obj)
 
 
 def checker_points(width: int, size: tuple):
@@ -60,8 +68,7 @@ def undistort(filenames, src_dir, out_dir, camera_matrix, dist_coeffs):
         cv2.imwrite(out_dir+'/'+filename, img)
 
 
-def main():
-    cv2.namedWindow("demo")
+if __name__ == '__main__':
     calibration_imgs = [f for f in os.listdir(src_dir) if f[-4:] == '.png']
     assert len(calibration_imgs) != 0
     camera_matrix, dist_coeffs = calibrate(calibration_imgs)
@@ -69,15 +76,9 @@ def main():
     # Uncomment this to undistort images used for calibration
     # undistort(calibration_imgs, src_dir, 'img_cal', camera_matrix, dist_coeffs)
 
-    print(camera_matrix, dist_coeffs, sep='\n')
-    og_stdout = sys.stdout
-    try:
-        f = open(out_file, 'w')
-        sys.stdout = f
-        print(camera_matrix, dist_coeffs, sep='\n')
-    finally:
-        sys.stdout = og_stdout
+    np_data = {'camera_matrix': camera_matrix,
+               'distortion_coefficients': dist_coeffs}
+    print(np_data)
 
-
-if __name__ == '__main__':
-    main()
+    with open(out_file, 'w') as f:
+        json.dump(np_data, f, cls=NumpyArrayEncoder, indent=4)

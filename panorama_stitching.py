@@ -62,8 +62,39 @@ def transform_image(in_img, transform):
     cv2.imwrite(fin_dir+'/transd.png', out_img)
 
 
+def transform_from_points(point_pairs):
+    result = np.zeros((3, 3))
+    # A is the final matrix of linear equations for all point pairs
+    A = np.empty((0, 9), float)
+    for p in point_pairs:
+        tmp = (np.array([[         p[0][0],          p[0][1],        1,
+                                         0,                0,        0,
+                          -p[0][0]*p[1][0], -p[0][1]*p[1][0], -p[1][0]],
+                         [               0,                0,        0,
+                                   p[0][0],          p[0][1],        1,
+                          -p[0][0]*p[1][1], -p[0][1]*p[1][1], -p[1][1]]]))
+        A = np.vstack((A, tmp))
+
+    print(A)
+    _, _, V = np.linalg.svd(A)
+    eingenvector = V[-1, :]
+    return eingenvector.reshape(3, 3)
+
+
+def test_transform_from_points():
+    ground_truth = np.random.rand(9)
+    ground_truth = (ground_truth / np.linalg.norm(ground_truth, 2)).reshape(3, 3)
+    points = [np.random.rand(2) for i in range(6)]
+    points = [np.array([p[0], p[1], 1]) for p in points]
+    pairs = [(p, ground_truth @ p) for p in points]
+    result = transform_from_points(pairs)
+    print(ground_truth, result, sep='\n')
+    assert (ground_truth == result).all()
+    
+
 if __name__ == '__main__':
     # Task 1
+    print("Task 1")
     camera_matrix, dist_coeffs = read_coeffs()
     src_filenames = [f for f in os.listdir(src_dir)
                      if f[0] == 'p' and f[-4:] == '.png'][:2]
@@ -73,7 +104,15 @@ if __name__ == '__main__':
     # cv2.imwrite(fin_dir+'/'+src_filenames[0], imgs[0])
     # cv2.imwrite(fin_dir+'/'+src_filenames[1], imgs[1])
 
+    print('[DONE]')
     # Task 2
+    print("Task 2")
     transform = np.array([[1, 0, 0], [0.5, 1, 0], [0, 0, 1]])
     
     transform_image(imgs[0], transform)
+
+    print('[DONE]')
+    # Task 3
+    print("Task 3")
+    test_transform_from_points()
+    print('[DONE]')

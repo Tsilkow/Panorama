@@ -73,7 +73,7 @@ if __name__ == '__main__':
     assert len(calibration_imgs) != 0
     camera_matrix, dist_coeffs = calibrate(calibration_imgs)
 
-    # Uncomment this to undistort images used for calibration
+    # Uncomment this to undistort images used for calibration:
     # undistort(calibration_imgs, src_dir, 'img_cal', camera_matrix, dist_coeffs)
 
     np_data = {'camera_matrix': camera_matrix,

@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 import json
+import math
 from json import JSONEncoder
 
 
@@ -47,15 +48,21 @@ def read_coeffs():
 
 
 def transform_image(in_img, transform):
-    out_img = np.zeros_like(in_img)
     inv_trans = np.linalg.inv(transform)
+    in_corners = np.array([[0, 0], [0, in_img.shape[1]],
+                           list(in_img.shape[:2]), [in_img.shape[0], 0]]).T
+    in_corners = np.vstack((in_corners, np.ones((1, 4))))
+    out_corners = transform @ in_corners
+    out_img = np.zeros((int(math.ceil(max(out_corners[0, :]))),
+                        int(math.ceil(max(out_corners[1, :]))),
+                        3))
+    print(out_img.shape)
 
     for x in range(out_img.shape[0]):
         for y in range(out_img.shape[1]):
-            origin = inv_trans @ np.array([x, y, 1]).T
-            origin = (round(origin[0]), round(origin[1]))
+            origin = (inv_trans @ np.array([x, y, 1]).T).astype(int)
             if origin[0] in range(in_img.shape[0]) and origin[1] in range(in_img.shape[1]):
-                out_img[x, y] = in_img[round(origin[0]), round(origin[1])]
+                out_img[x, y] = in_img[origin[0], origin[1]]
             else:
                 out_img[x, y] = (0, 0, 0)
 
@@ -113,6 +120,47 @@ def test_transform_from_points(threshold):
 def stitch_images(in_imgs, transform):
     transformed_imgs = [in_imgs[0], transform_image(in_imgs[1], transform)]
     
+
+def get_matches(img1, img2, visualize=True, lowe_ratio=0.6):
+    # Convert imgaes to grayscale
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
+    # Find the keypoints and descriptors with SIFT
+    sift = cv2.SIFT_create()
+    kp1, des1 = sift.detectAndCompute(img1, None)
+    kp2, des2 = sift.detectAndCompute(img2, None)
+
+    # FLANN parameters
+    FLANN_INDEX_KDTREE = 1
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    search_params = dict(checks=50)  # or pass empty dictionary
+    flann = cv2.FlannBasedMatcher(index_params, search_params)
+    matches = flann.knnMatch(des1, des2, k=2)
+
+    # Need to draw good matches, so create a mask
+    matchesMask = [[0, 0] for i in range(len(matches))]
+
+    # Ratio test as per Lowe's paper
+    good_matches = []
+    for i, (m, n) in enumerate(matches):
+        if m.distance < lowe_ratio * n.distance:
+            matchesMask[i] = [1, 0]
+            good_matches.append((kp1[m.queryIdx].pt, kp2[m.trainIdx].pt))
+
+    if visualize:
+        draw_params = dict(
+            matchColor=(0, 255, 0),
+            singlePointColor=(0, 0, 255),
+            matchesMask=matchesMask,
+            flags=cv2.DrawMatchesFlags_DEFAULT,
+        )
+        img3 = cv2.drawMatchesKnn(img1, kp1, img2, kp2, matches, None, **draw_params)
+        cv2.imshow("vis", img3)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    return good_matches
     
 
 def task_1():
@@ -144,12 +192,18 @@ def task_3():
 
 def task_4():
     print("Task 4")
-    matching_points = [((215, 124), (483, 136)),
-                       ((315, 475), (577, 488)),
-                       (( 63, 534), (347, 518)),
-                       ((266, 110), (535, 120)),
-                       ((399,  79), (679,  81))]
+    matching_points = [((322, 445, 1), (587, 457, 1)),
+                       ((352, 447, 1), (591, 456, 1)),
+                       (( 30, 488, 1), (319, 472, 1)),
+                       ((245, 110, 1), (512, 121, 1)),
+                       ((180,  55, 1), (453,  72, 1))]
+    # matching_points = [((215, 124), (483, 136)),
+    #                    ((315, 475), (577, 488)),
+    #                    (( 63, 534), (347, 518)),
+    #                    ((266, 110), (535, 120)),
+    #                    ((399,  79), (679,  81))]
     transform = transform_from_points(matching_points)
+    print(transform)
     print("[DONE]")
     return transform
 
@@ -160,6 +214,9 @@ def task_5(imgs, transform):
     print("[DONE]")
     
 
+def task_6(imgs):
+    with np.printoptions(precision=0):
+        print(*get_matches(imgs[0], imgs[1]), sep='\n')    
 
 if __name__ == '__main__':
     imgs = task_1()
@@ -167,3 +224,4 @@ if __name__ == '__main__':
     task_3()
     transform = task_4()
     task_5(imgs, transform)
+    task_6(imgs)

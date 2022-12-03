@@ -3,6 +3,7 @@ import numpy as np
 import os
 import json
 import math
+import random
 from json import JSONEncoder
 
 
@@ -53,14 +54,22 @@ def transform_image(in_img, transform):
                            list(in_img.shape[:2]), [in_img.shape[0], 0]]).T
     in_corners = np.vstack((in_corners, np.ones((1, 4))))
     out_corners = transform @ in_corners
-    out_img = np.zeros((int(math.ceil(max(out_corners[0, :]))),
-                        int(math.ceil(max(out_corners[1, :]))),
+    out_offset = np.array([-int(round(min(out_corners[0, :]))),
+                           -int(round(min(out_corners[1, :]))),
+                           0])
+    print(out_offset)
+    out_img = np.zeros((out_offset[0] + int(round(max(out_corners[0, :]))),
+                        out_offset[1] + int(round(max(out_corners[1, :]))),
                         3))
+    print(out_corners)
     print(out_img.shape)
 
     for x in range(out_img.shape[0]):
+        print(f'x = {x}', end='\r')
         for y in range(out_img.shape[1]):
-            origin = (inv_trans @ np.array([x, y, 1]).T).astype(int)
+            origin = normalize_point(inv_trans @
+                                     np.array([x - out_offset[0], y - out_offset[1], 1])
+                                     ).astype(int)
             if origin[0] in range(in_img.shape[0]) and origin[1] in range(in_img.shape[1]):
                 out_img[x, y] = in_img[origin[0], origin[1]]
             else:
@@ -71,7 +80,9 @@ def transform_image(in_img, transform):
 
 
 def normalize_point(point):
-    return point / point[2] 
+    if len(point) == 2: return (point[0], point[1], 1)
+    elif len(point) == 3: return point / point[2]
+    else: raise ValueError
 
 
 def transform_from_points(point_pairs):
@@ -97,12 +108,13 @@ def transform_from_points(point_pairs):
 
     _, _, V = np.linalg.svd(A)
     eingenvector = V[-1, :].reshape(3, 3)
-    return eingenvector / np.linalg.norm(eingenvector, 2)
+    eingenvector = eingenvector / eingenvector[2, 2]
+    return eingenvector
 
 
 def test_transform_from_points(threshold):
     ground_truth = np.random.rand(9).reshape(3, 3)
-    ground_truth / np.linalg.norm(ground_truth, 2)
+    ground_truth = ground_truth / ground_truth[2, 2]
     test_points = [np.random.rand(2) for i in range(4)]
     test_points = [np.array([p[0], p[1], 1]) for p in test_points]
     test_pairs = [(p, normalize_point(ground_truth @ p)) for p in test_points]
@@ -161,6 +173,22 @@ def get_matches(img1, img2, visualize=True, lowe_ratio=0.6):
         cv2.destroyAllWindows()
 
     return good_matches
+
+
+
+def get_best_matches(matching_points, threshold, tries=1000):
+    best_inliners = []
+    for t in range(tries):
+        inliners = []
+        sample = random.sample(matching_points, 4)
+        transform = transform_from_points(sample)
+        for pair in matching_points:
+            error = np.linalg.norm(normalize_point(pair[1]) -
+                                   normalize_point(transform @ (pair[0][0], pair[0][1], 1)), 1)
+            if error < threshold:
+                inliners.append(pair)
+        if len(best_inliners) < len(inliners): best_inliners = inliners
+    return best_inliners
     
 
 def task_1():
@@ -178,7 +206,7 @@ def task_1():
 
 def task_2(imgs):
     print("Task 2")
-    transform = np.array([[1, 0, 0], [0.5, 1, 0], [0, 0, 1]])
+    transform = np.array([[1, -0.5, 0.2], [0.5, 1, -0.2], [0.01, 0.01, 1]])
     transform_image(imgs[0], transform)
     print('[DONE]')
 
@@ -192,11 +220,11 @@ def task_3():
 
 def task_4():
     print("Task 4")
-    matching_points = [((322, 445, 1), (587, 457, 1)),
-                       ((352, 447, 1), (591, 456, 1)),
-                       (( 30, 488, 1), (319, 472, 1)),
-                       ((245, 110, 1), (512, 121, 1)),
-                       ((180,  55, 1), (453,  72, 1))]
+    matching_points = [((322, 445), (587, 457)),
+                       ((352, 447), (591, 456)),
+                       (( 30, 488), (319, 472)),
+                       ((245, 110), (512, 121)),
+                       ((180,  55), (453,  72))]
     # matching_points = [((215, 124), (483, 136)),
     #                    ((315, 475), (577, 488)),
     #                    (( 63, 534), (347, 518)),
@@ -215,13 +243,28 @@ def task_5(imgs, transform):
     
 
 def task_6(imgs):
-    with np.printoptions(precision=0):
-        print(*get_matches(imgs[0], imgs[1]), sep='\n')    
+    print("Task 6")
+    matches = get_matches(imgs[0], imgs[1], False)
+    print("[DONE]")
+    return matches
+
+
+def task_7(imgs, matching_points):
+    print("Task 7")
+    best_points = get_best_matches(matching_points, 0.1)
+    print(len(best_points))
+    transform = transform_from_points(best_points)
+    print(transform)
+    transform_image(imgs[1], transform)
+    print("[DONE]")
+
 
 if __name__ == '__main__':
     imgs = task_1()
     task_2(imgs)
-    task_3()
-    transform = task_4()
-    task_5(imgs, transform)
-    task_6(imgs)
+    #task_3()
+    #transform = task_4()
+    #task_5(imgs, transform)
+    matching_points = task_6(imgs)
+    print(len(matching_points))
+    task_7(imgs, matching_points)

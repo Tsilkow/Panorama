@@ -3,7 +3,6 @@ import keyboard
 from camera import RESOLUTIONS, Camera
 import os
 
-
 # Simple script aimed at capturing images using small cameras given out during
 # labs
 #
@@ -15,11 +14,14 @@ import os
 # Press + and - to adjust resolution (its value will be printed in the
 # terminal)
 
+out_dir = 'img_src'
+
+
 def main():
     cv2.namedWindow("demo")
     cam = Camera()
     img_counter = 0
-    os.chdir("img/")
+    os.chdir(out_dir+'/')
 
     print("Connected, starting continuous capture")
     while True:
@@ -31,7 +33,7 @@ def main():
             break
         elif keyboard.is_pressed("s"):
             cv2.imwrite(f'{img_counter:03d}.png', img)
-            print(f'Image was saved to img/{img_counter:03d}.png')
+            print(f'Image was saved to {out_dir}/{img_counter:03d}.png')
             img_counter += 1
         elif keyboard.is_pressed("+"):
             q = cam.get_quality()

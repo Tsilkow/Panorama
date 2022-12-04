@@ -69,31 +69,14 @@ def transform_image(in_img, transform):
                                   range(-out_offset[1], out_img.shape[1] - out_offset[1]),
                                   range(1, 2)))
     origin = origin.reshape(origin.shape[:3]).T
-    #print('---')
-    #print(origin)
-    #print('---')
-    #print(origin.reshape(-1, 3))
-    #print('---')
-    #print(origin.reshape(-1, 3).reshape(out_img.shape))
     origin = np.around(normalize_points((inv_trans @ origin.reshape(-1, 3).T)).T.reshape(out_img.shape)).astype(int)
-    #print(origin.shape)
-    #origin[origin[:, :, 0] < 0               ] = 0
-    #origin[origin[:, :, 0] >= in_img.shape[0]] = 0
-    #origin[origin[:, :, 1] < 0               ] = 0
-    #origin[origin[:, :, 1] >= in_img.shape[1]] = 0
     domain = ((origin[:, :, 0] >= 0) & (origin[:, :, 0] <  in_img.shape[0]) & \
               (origin[:, :, 1] >= 0) & (origin[:, :, 1] <  in_img.shape[1]))
-    #print(f'domain.shape = {domain.shape}')
     origin[np.logical_not(domain)] = 0
-    #print(f'origin.shape = {origin.shape}')
-    #print(f'in_img.shape = {in_img.shape}')
-    #print(origin)
     out_img[:, :, 0] = np.where(domain, in_img[origin[:, :, 0], origin[:, :, 1], 0], 0)
     out_img[:, :, 1] = np.where(domain, in_img[origin[:, :, 0], origin[:, :, 1], 1], 0)
     out_img[:, :, 2] = np.where(domain, in_img[origin[:, :, 0], origin[:, :, 1], 2], 0)
-    #print(f'out_img.shape = {out_img.shape}')
-    #print(domain)
-
+ 
     cv2.imwrite(fin_dir+'/transd.png', out_img)
     return out_img
 
@@ -159,8 +142,31 @@ def test_transform_from_points(threshold):
     assert error < threshold
 
 
-def stitch_images(in_imgs, transform):
-    transformed_imgs = [in_imgs[0], transform_image(in_imgs[1], transform)]
+def stitch_images(in_imgs, matching_points):
+    transform = transform_from_points(matching_points)
+    trans_imgs = [in_imgs[0], transform_image(in_imgs[1], transform)]
+    offset = [normalize_point(transform @ normalize_point(pair[0])) - normalize_point(pair[1]) for pair in matching_points]
+    offset = np.around(np.mean(offset, axis=0)).astype(int)[:2]
+    i1x = [max(0, -offset[0]), max(0, -offset[0]) + trans_imgs[0].shape[0]]
+    i1y = [max(0, -offset[1]), max(0, -offset[1]) + trans_imgs[0].shape[1]]
+    i2x = [max(0,  offset[0]), max(0,  offset[0]) + trans_imgs[1].shape[0]]
+    i2y = [max(0,  offset[1]), max(0,  offset[1]) + trans_imgs[1].shape[1]]
+    corners = np.array([[[i1x[0], i1y[0]], [i1x[1], i1y[0]],
+                         [i1x[0], i1y[1]], [i1x[1], i1y[1]]],
+                        [[i2x[0], i2y[0]], [i2x[1], i2y[0]],
+                         [i2x[0], i2y[1]], [i2x[1], i2y[1]]]])
+    print(corners)
+    width  = int(round(max(i1x[1], i2x[1]) - max(0, min(i1x[0], i2x[0]))))
+    height = int(round(max(i1y[1], i2y[1]) - max(0, min(i1y[0], i2y[0]))))
+    out_img = np.zeros((width, height, 3))
+    print(f'offset = {offset}')
+    print(f'out_img.shape = {out_img.shape}')
+    print(f'trans_imgs[0].shape = {trans_imgs[0].shape}')
+    print(f'trans_imgs[1].shape = {trans_imgs[1].shape}')
+    out_img[i1x[0]:i1x[1], i1y[0]:i1y[1]] = trans_imgs[0]
+    out_img[i2x[0]:i2x[1], i2y[0]:i2y[1]] = trans_imgs[1]
+    cv2.imwrite(fin_dir+'/'+'final.png', out_img)
+    
     
 
 def get_matches(img1, img2, visualize=True, lowe_ratio=0.6):
@@ -277,7 +283,7 @@ def task_5(imgs, transform):
 
 def task_6(imgs):
     print("Task 6")
-    matches = get_matches(imgs[0], imgs[1], True)
+    matches = get_matches(imgs[0], imgs[1], False)
     print("[DONE]")
     return matches
 
@@ -286,9 +292,7 @@ def task_7(imgs, matching_points):
     print("Task 7")
     best_points = get_best_matches(matching_points, 0.1)
     print(len(best_points))
-    transform = transform_from_points(best_points)
-    print(transform)
-    transform_image(imgs[1], transform)
+    stitch_images(imgs, best_points)
     print("[DONE]")
 
 

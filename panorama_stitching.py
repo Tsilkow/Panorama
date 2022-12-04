@@ -54,22 +54,22 @@ def transform_image(in_img, transform):
                            list(in_img.shape[:2]), [in_img.shape[0], 0]]).T
     in_corners = np.vstack((in_corners, np.ones((1, 4))))
     out_corners = np.around(normalize_points(transform @ in_corners)).astype(int)
-    out_offset = np.array([-int(round(min(out_corners[0, :]))),
-                           -int(round(min(out_corners[1, :]))),
+    out_offset = np.array([int(round(min(out_corners[0, :]))),
+                           int(round(min(out_corners[1, :]))),
                            0])
-    out_img = np.zeros((out_offset[0] + int(round(max(out_corners[0, :]))),
-                        out_offset[1] + int(round(max(out_corners[1, :]))),
+    out_img = np.zeros((-out_offset[0] + int(round(max(out_corners[0, :]))),
+                        -out_offset[1] + int(round(max(out_corners[1, :]))),
                         3))
     print(f'offset = {out_offset}')
     print(f'out_corners = {out_corners}')
     print(f'in_img.shape = {in_img.shape}')
     print(f'out_img.shape = {out_img.shape}')
 
-    origin = np.array(np.meshgrid(range(-out_offset[0], out_img.shape[0] - out_offset[0]),
-                                  range(-out_offset[1], out_img.shape[1] - out_offset[1]),
+    coords = np.array(np.meshgrid(range(out_offset[0], out_img.shape[0] + out_offset[0]),
+                                  range(out_offset[1], out_img.shape[1] + out_offset[1]),
                                   range(1, 2)))
-    origin = origin.reshape(origin.shape[:3]).T
-    origin = np.around(normalize_points((inv_trans @ origin.reshape(-1, 3).T)).T.reshape(out_img.shape)).astype(int)
+    coords = coords.reshape(coords.shape[:3]).T
+    origin = np.around(normalize_points((inv_trans @ coords.reshape(-1, 3).T)).T.reshape(out_img.shape)).astype(int)
     domain = ((origin[:, :, 0] >= 0) & (origin[:, :, 0] <  in_img.shape[0]) & \
               (origin[:, :, 1] >= 0) & (origin[:, :, 1] <  in_img.shape[1]))
     origin[np.logical_not(domain)] = 0
@@ -78,7 +78,7 @@ def transform_image(in_img, transform):
     out_img[:, :, 2] = np.where(domain, in_img[origin[:, :, 0], origin[:, :, 1], 2], 0)
  
     cv2.imwrite(fin_dir+'/transd.png', out_img)
-    return out_img
+    return out_img, out_offset
 
 
 def normalize_point(point):
@@ -144,29 +144,32 @@ def test_transform_from_points(threshold):
 
 def stitch_images(in_imgs, matching_points):
     transform = transform_from_points(matching_points)
-    trans_imgs = [in_imgs[0], transform_image(in_imgs[1], transform)]
-    offset = [normalize_point(transform @ normalize_point(pair[0])) - normalize_point(pair[1]) for pair in matching_points]
-    offset = np.around(np.mean(offset, axis=0)).astype(int)[:2]
-    i1x = [max(0, -offset[0]), max(0, -offset[0]) + trans_imgs[0].shape[0]]
-    i1y = [max(0, -offset[1]), max(0, -offset[1]) + trans_imgs[0].shape[1]]
-    i2x = [max(0,  offset[0]), max(0,  offset[0]) + trans_imgs[1].shape[0]]
-    i2y = [max(0,  offset[1]), max(0,  offset[1]) + trans_imgs[1].shape[1]]
+    trans_imgs = [in_imgs[0], in_imgs[1]]
+    trans_imgs[0], offset = transform_image(in_imgs[0], transform)
+    #offset = np.array([offset[1], offset[0], offset[2]])
+    #offset = [normalize_point(transform @ normalize_point(pair[0])) - normalize_point(pair[1]) for pair in matching_points]
+    #offset = np.around(np.mean(offset, axis=0)).astype(int)[:2]
+    print(offset)
+    i1x = [max(0,  offset[0]), max(0,  offset[0]) + trans_imgs[0].shape[0]]
+    i1y = [max(0,  offset[1]), max(0,  offset[1]) + trans_imgs[0].shape[1]]
+    i2x = [max(0, -offset[0]), max(0, -offset[0]) + trans_imgs[1].shape[0]]
+    i2y = [max(0, -offset[1]), max(0, -offset[1]) + trans_imgs[1].shape[1]]
+    print(i1x, i1y, i2x, i2y, sep='\n')
     corners = np.array([[[i1x[0], i1y[0]], [i1x[1], i1y[0]],
                          [i1x[0], i1y[1]], [i1x[1], i1y[1]]],
                         [[i2x[0], i2y[0]], [i2x[1], i2y[0]],
                          [i2x[0], i2y[1]], [i2x[1], i2y[1]]]])
     print(corners)
-    width  = int(round(max(i1x[1], i2x[1]) - max(0, min(i1x[0], i2x[0]))))
-    height = int(round(max(i1y[1], i2y[1]) - max(0, min(i1y[0], i2y[0]))))
+    width  = int(round(max(i1x[1], i2x[1]) - min(i1x[0], i2x[0])))
+    height = int(round(max(i1y[1], i2y[1]) - min(i1y[0], i2y[0])))
     out_img = np.zeros((width, height, 3))
     print(f'offset = {offset}')
     print(f'out_img.shape = {out_img.shape}')
     print(f'trans_imgs[0].shape = {trans_imgs[0].shape}')
     print(f'trans_imgs[1].shape = {trans_imgs[1].shape}')
-    out_img[i1x[0]:i1x[1], i1y[0]:i1y[1]] = trans_imgs[0]
-    out_img[i2x[0]:i2x[1], i2y[0]:i2y[1]] = trans_imgs[1]
-    cv2.imwrite(fin_dir+'/'+'final.png', out_img)
-    
+    out_img[i1x[0]:i1x[1], i1y[0]:i1y[1]] += trans_imgs[0]//2
+    out_img[i2x[0]:i2x[1], i2y[0]:i2y[1]] += trans_imgs[1]//2
+    cv2.imwrite(fin_dir+'/'+'final.png', out_img)    
     
 
 def get_matches(img1, img2, visualize=True, lowe_ratio=0.6):

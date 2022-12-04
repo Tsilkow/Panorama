@@ -49,31 +49,43 @@ def read_coeffs():
 
 
 def transform_image(in_img, transform):
-    inv_trans = np.linalg.inv(transform)
+    inv_trans = normalize_homography(np.linalg.inv(transform))
     in_corners = np.array([[0, 0], [0, in_img.shape[1]],
                            list(in_img.shape[:2]), [in_img.shape[0], 0]]).T
     in_corners = np.vstack((in_corners, np.ones((1, 4))))
-    out_corners = transform @ in_corners
+    out_corners = np.around(normalize_points(transform @ in_corners)).astype(int)
     out_offset = np.array([-int(round(min(out_corners[0, :]))),
                            -int(round(min(out_corners[1, :]))),
                            0])
-    print(out_offset)
     out_img = np.zeros((out_offset[0] + int(round(max(out_corners[0, :]))),
                         out_offset[1] + int(round(max(out_corners[1, :]))),
                         3))
-    print(out_corners)
-    print(out_img.shape)
+    print(f'offset = {out_offset}')
+    print(f'out_corners = {out_corners}')
+    print(f'in_img.shape = {in_img.shape}')
+    print(f'out_img.shape = {out_img.shape}')
 
-    for x in range(out_img.shape[0]):
-        print(f'x = {x}', end='\r')
-        for y in range(out_img.shape[1]):
-            origin = normalize_point(inv_trans @
-                                     np.array([x - out_offset[0], y - out_offset[1], 1])
-                                     ).astype(int)
-            if origin[0] in range(in_img.shape[0]) and origin[1] in range(in_img.shape[1]):
-                out_img[x, y] = in_img[origin[0], origin[1]]
-            else:
-                out_img[x, y] = (0, 0, 0)
+    origin = np.array(np.meshgrid(range(-out_offset[0], out_img.shape[0] - out_offset[0]),
+                                  range(-out_offset[1], out_img.shape[1] - out_offset[1]),
+                                  range(1, 2)))
+    origin = origin.reshape(origin.shape[:3]).T
+    #print('---')
+    #print(origin)
+    #print('---')
+    #print(origin.reshape(-1, 3))
+    #print('---')
+    #print(origin.reshape(-1, 3).reshape(out_img.shape))
+    origin = np.around(normalize_points((inv_trans @ origin.reshape(-1, 3).T)).T.reshape(out_img.shape)).astype(int)
+    print(origin.shape)
+    #origin[origin[:, :, 0] < 0               ] = 0
+    #origin[origin[:, :, 0] >= in_img.shape[0]] = 0
+    #origin[origin[:, :, 1] < 0               ] = 0
+    #origin[origin[:, :, 1] >= in_img.shape[1]] = 0
+    domain = np.where(origin[:, :, 0] >= 0 and
+                      origin[:, :, 0] <  in_img.shape[0] and
+                      origin[:, :, 1] >= 0 and
+                      origin[:, :, 1] <  in_img.shape[1], 1, 0)
+    out_img = in_img[origin[:, :, 0], origin[:, :, 1]] * domain
 
     cv2.imwrite(fin_dir+'/transd.png', out_img)
     return out_img
@@ -83,6 +95,19 @@ def normalize_point(point):
     if len(point) == 2: return (point[0], point[1], 1)
     elif len(point) == 3: return point / point[2]
     else: raise ValueError
+    
+
+def normalize_points(points):
+    norm = points[2, :]
+    assert (norm != 0).all
+    result = points / norm
+    return result
+
+
+def normalize_homography(homography):
+    homography = homography.reshape(-1)
+    assert homography.shape[0] == 9
+    return (homography / np.linalg.norm(homography, 2)).reshape(3, 3)
 
 
 def transform_from_points(point_pairs):
@@ -107,14 +132,12 @@ def transform_from_points(point_pairs):
         A = np.vstack((A, tmp))
 
     _, _, V = np.linalg.svd(A)
-    eingenvector = V[-1, :].reshape(3, 3)
-    eingenvector = eingenvector / eingenvector[2, 2]
+    eingenvector = normalize_homography(V[-1, :])
     return eingenvector
 
 
 def test_transform_from_points(threshold):
-    ground_truth = np.random.rand(9).reshape(3, 3)
-    ground_truth = ground_truth / ground_truth[2, 2]
+    ground_truth = normalize_homography(np.random.rand(9))
     test_points = [np.random.rand(2) for i in range(4)]
     test_points = [np.array([p[0], p[1], 1]) for p in test_points]
     test_pairs = [(p, normalize_point(ground_truth @ p)) for p in test_points]
@@ -206,7 +229,10 @@ def task_1():
 
 def task_2(imgs):
     print("Task 2")
-    transform = np.array([[1, -0.5, 0.2], [0.5, 1, -0.2], [0.01, 0.01, 1]])
+    transform = normalize_homography(np.array([[ 1   , -0.5 , -0.2 ],
+                                               [-0.5 ,  1   , -0.2 ],
+                                               [ 0.01,  0.01,  1   ]]))
+    print(transform)
     transform_image(imgs[0], transform)
     print('[DONE]')
 
@@ -262,9 +288,9 @@ def task_7(imgs, matching_points):
 if __name__ == '__main__':
     imgs = task_1()
     task_2(imgs)
-    #task_3()
+    task_3()
     #transform = task_4()
     #task_5(imgs, transform)
-    matching_points = task_6(imgs)
-    print(len(matching_points))
-    task_7(imgs, matching_points)
+    #matching_points = task_6(imgs)
+    #print(len(matching_points))
+    #task_7(imgs, matching_points)

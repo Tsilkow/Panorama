@@ -76,16 +76,23 @@ def transform_image(in_img, transform):
     #print('---')
     #print(origin.reshape(-1, 3).reshape(out_img.shape))
     origin = np.around(normalize_points((inv_trans @ origin.reshape(-1, 3).T)).T.reshape(out_img.shape)).astype(int)
-    print(origin.shape)
+    #print(origin.shape)
     #origin[origin[:, :, 0] < 0               ] = 0
     #origin[origin[:, :, 0] >= in_img.shape[0]] = 0
     #origin[origin[:, :, 1] < 0               ] = 0
     #origin[origin[:, :, 1] >= in_img.shape[1]] = 0
-    domain = np.where(origin[:, :, 0] >= 0 and
-                      origin[:, :, 0] <  in_img.shape[0] and
-                      origin[:, :, 1] >= 0 and
-                      origin[:, :, 1] <  in_img.shape[1], 1, 0)
-    out_img = in_img[origin[:, :, 0], origin[:, :, 1]] * domain
+    domain = ((origin[:, :, 0] >= 0) & (origin[:, :, 0] <  in_img.shape[0]) & \
+              (origin[:, :, 1] >= 0) & (origin[:, :, 1] <  in_img.shape[1]))
+    #print(f'domain.shape = {domain.shape}')
+    origin[np.logical_not(domain)] = 0
+    #print(f'origin.shape = {origin.shape}')
+    #print(f'in_img.shape = {in_img.shape}')
+    #print(origin)
+    out_img[:, :, 0] = np.where(domain, in_img[origin[:, :, 0], origin[:, :, 1], 0], 0)
+    out_img[:, :, 1] = np.where(domain, in_img[origin[:, :, 0], origin[:, :, 1], 1], 0)
+    out_img[:, :, 2] = np.where(domain, in_img[origin[:, :, 0], origin[:, :, 1], 2], 0)
+    #print(f'out_img.shape = {out_img.shape}')
+    #print(domain)
 
     cv2.imwrite(fin_dir+'/transd.png', out_img)
     return out_img
@@ -270,7 +277,7 @@ def task_5(imgs, transform):
 
 def task_6(imgs):
     print("Task 6")
-    matches = get_matches(imgs[0], imgs[1], False)
+    matches = get_matches(imgs[0], imgs[1], True)
     print("[DONE]")
     return matches
 
@@ -287,10 +294,10 @@ def task_7(imgs, matching_points):
 
 if __name__ == '__main__':
     imgs = task_1()
-    task_2(imgs)
+    #task_2(imgs)
     task_3()
     #transform = task_4()
     #task_5(imgs, transform)
-    #matching_points = task_6(imgs)
-    #print(len(matching_points))
-    #task_7(imgs, matching_points)
+    matching_points = task_6(imgs)
+    print(len(matching_points))
+    task_7(imgs, matching_points)

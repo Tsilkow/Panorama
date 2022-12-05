@@ -60,10 +60,10 @@ def transform_image(in_img, transform):
     out_img = np.zeros((-out_offset[0] + int(round(max(out_corners[0, :]))),
                         -out_offset[1] + int(round(max(out_corners[1, :]))),
                         3))
-    print(f'offset = {out_offset}')
-    print(f'out_corners = {out_corners}')
-    print(f'in_img.shape = {in_img.shape}')
-    print(f'out_img.shape = {out_img.shape}')
+    #print(f'offset = {out_offset}')
+    #print(f'out_corners = {out_corners}')
+    #print(f'in_img.shape = {in_img.shape}')
+    #print(f'out_img.shape = {out_img.shape}')
 
     coords = np.array(np.meshgrid(range(out_offset[0], out_img.shape[0] + out_offset[0]),
                                   range(out_offset[1], out_img.shape[1] + out_offset[1]),
@@ -142,34 +142,26 @@ def test_transform_from_points(threshold):
     assert error < threshold
 
 
-def stitch_images(in_imgs, matching_points):
+def stitch_images(in_imgs, matching_points, name):
     transform = transform_from_points(matching_points)
     trans_imgs = [in_imgs[0], in_imgs[1]]
     trans_imgs[0], offset = transform_image(in_imgs[0], transform)
-    #offset = np.array([offset[1], offset[0], offset[2]])
-    #offset = [normalize_point(transform @ normalize_point(pair[0])) - normalize_point(pair[1]) for pair in matching_points]
-    #offset = np.around(np.mean(offset, axis=0)).astype(int)[:2]
-    print(offset)
+    #print(f'offset = {offset}')
     i1x = [max(0,  offset[0]), max(0,  offset[0]) + trans_imgs[0].shape[0]]
     i1y = [max(0,  offset[1]), max(0,  offset[1]) + trans_imgs[0].shape[1]]
     i2x = [max(0, -offset[0]), max(0, -offset[0]) + trans_imgs[1].shape[0]]
     i2y = [max(0, -offset[1]), max(0, -offset[1]) + trans_imgs[1].shape[1]]
-    print(i1x, i1y, i2x, i2y, sep='\n')
-    corners = np.array([[[i1x[0], i1y[0]], [i1x[1], i1y[0]],
-                         [i1x[0], i1y[1]], [i1x[1], i1y[1]]],
-                        [[i2x[0], i2y[0]], [i2x[1], i2y[0]],
-                         [i2x[0], i2y[1]], [i2x[1], i2y[1]]]])
-    print(corners)
+    #print(i1x, i1y, i2x, i2y, sep='\n')
     width  = int(round(max(i1x[1], i2x[1]) - min(i1x[0], i2x[0])))
     height = int(round(max(i1y[1], i2y[1]) - min(i1y[0], i2y[0])))
     out_img = np.zeros((width, height, 3))
-    print(f'offset = {offset}')
-    print(f'out_img.shape = {out_img.shape}')
-    print(f'trans_imgs[0].shape = {trans_imgs[0].shape}')
-    print(f'trans_imgs[1].shape = {trans_imgs[1].shape}')
+    #print(f'offset = {offset}')
+    #print(f'out_img.shape = {out_img.shape}')
+    #print(f'trans_imgs[0].shape = {trans_imgs[0].shape}')
+    #print(f'trans_imgs[1].shape = {trans_imgs[1].shape}')
     out_img[i1x[0]:i1x[1], i1y[0]:i1y[1]] += trans_imgs[0]//2
     out_img[i2x[0]:i2x[1], i2y[0]:i2y[1]] += trans_imgs[1]//2
-    cv2.imwrite(fin_dir+'/'+'final.png', out_img)    
+    cv2.imwrite(fin_dir+'/'+name+'.png', out_img)    
     
 
 def get_matches(img1, img2, visualize=True, lowe_ratio=0.6):
@@ -215,7 +207,7 @@ def get_matches(img1, img2, visualize=True, lowe_ratio=0.6):
 
 
 
-def get_best_matches(matching_points, threshold, tries=1000):
+def get_best_matches(matching_points, threshold, tries=10000):
     best_inliners = []
     for t in range(tries):
         inliners = []
@@ -223,7 +215,7 @@ def get_best_matches(matching_points, threshold, tries=1000):
         transform = transform_from_points(sample)
         for pair in matching_points:
             error = np.linalg.norm(normalize_point(pair[1]) -
-                                   normalize_point(transform @ (pair[0][0], pair[0][1], 1)), 1)
+                                   normalize_point(transform @ (pair[0][0], pair[0][1], 1)), 2)
             if error < threshold:
                 inliners.append(pair)
         if len(best_inliners) < len(inliners): best_inliners = inliners
@@ -248,7 +240,6 @@ def task_2(imgs):
     transform = normalize_homography(np.array([[ 1   , -0.5 , -0.2 ],
                                                [-0.5 ,  1   , -0.2 ],
                                                [ 0.01,  0.01,  1   ]]))
-    print(transform)
     transform_image(imgs[0], transform)
     print('[DONE]')
 
@@ -262,25 +253,19 @@ def task_3():
 
 def task_4():
     print("Task 4")
-    matching_points = [((322, 445), (587, 457)),
-                       ((352, 447), (591, 456)),
-                       (( 30, 488), (319, 472)),
-                       ((245, 110), (512, 121)),
-                       ((180,  55), (453,  72))]
-    # matching_points = [((215, 124), (483, 136)),
-    #                    ((315, 475), (577, 488)),
-    #                    (( 63, 534), (347, 518)),
-    #                    ((266, 110), (535, 120)),
-    #                    ((399,  79), (679,  81))]
+    matching_points = [((638, 228), (311, 248)),
+                       ((486, 182), (164, 185)),
+                       ((357, 106), ( 25,  84)),
+                       ((774, 364), (418, 381))]
     transform = transform_from_points(matching_points)
     print(transform)
     print("[DONE]")
-    return transform
+    return matching_points
 
 
-def task_5(imgs, transform):
+def task_5(imgs, matching_points):
     print("Task 5")
-    stitch_images(imgs, transform)
+    stitch_images(imgs, matching_points, 'task_5_panorama')
     print("[DONE]")
     
 
@@ -293,18 +278,16 @@ def task_6(imgs):
 
 def task_7(imgs, matching_points):
     print("Task 7")
-    best_points = get_best_matches(matching_points, 0.1)
-    print(len(best_points))
-    stitch_images(imgs, best_points)
+    best_points = get_best_matches(matching_points, 0.5)
+    stitch_images(imgs, best_points, 'task_7_panorama')
     print("[DONE]")
 
 
 if __name__ == '__main__':
     imgs = task_1()
-    #task_2(imgs)
+    task_2(imgs)
     task_3()
-    #transform = task_4()
-    #task_5(imgs, transform)
+    matching_points = task_4()
+    task_5(imgs, matching_points)
     matching_points = task_6(imgs)
-    print(len(matching_points))
     task_7(imgs, matching_points)
